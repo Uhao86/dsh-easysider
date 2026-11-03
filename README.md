@@ -82,80 +82,212 @@
 
 ## 前置条件
 
-- Node.js ≥ 22.19（DSH 运行时要求）
-- Chrome / Chromium ≥ 116（侧边栏 API）
-- 已安装 DSH，且 `dsh` 在 `PATH` 中
-- 至少用过一次 `dsh web`，让 `~/.dsh` 里有登录凭据和模型配置
-- 富 UI 需要把 intelligent-ui 装进 `sdk` profile（见下方第 0 步）
-- 生成图标需要 macOS 的 `sips`；不改图标不需要
+从零开始也只需要这几样；下面的快速开始会把 DSH 和 intelligent-ui 装好。
 
-```sh
-# 检查
-node -v
-dsh --version
-curl -s http://127.0.0.1:8787/api/health   # bridge 启动后
-```
+- **Node.js ≥ 22.19**：DSH 运行时要求
+- **Chrome / Chromium ≥ 116**：侧边栏 API
+- **Git**：拉取仓库
+- **一个 DeepSeek 账号**：第一次 `dsh web` 时登录
+- **DSH CLI**：快速开始里用 npm 安装
+- **intelligent-ui**：快速开始里装进 `sdk` profile；不装也能用，只是没有富 UI
+- macOS 仅在重新生成图标时需要 `sips`
 
+> bridge 本身没有运行时 npm 依赖；`npm install` 只用于浏览器测试（`playwright-core`）。
 
 ## 快速开始
 
-### 0. 安装 intelligent UI 插件（只需一次）
+两种走法，任选一种：
+
+- **路径 A：给人** —— 从零开始，复制命令到第一次对话。
+- **路径 B：给 agent** —— 把这一节交给 agent，它负责检查、安装、启动和验证，直到"需要你手动加载扩展"为止。
+
+> 下面的命令以 macOS / Linux 为准；Windows 用 PowerShell 等价命令，或 Git Bash / WSL。
+>
+> DSH 本身见 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)。
+
+### 路径 A：给人（从零开始）
+
+#### 0. 检查环境
 
 ```sh
-DSH_HOME=~/.dsh dsh plugin --profile sdk add deepseek-harness-intelligent-ui@0.2.13
+node -v            # 需要 v22.19 或更高
+git --version
+dsh --version      # 没装会报 command not found，下一步安装
+(test -d "/Applications/Google Chrome.app" || command -v google-chrome || command -v chromium) && echo "Chrome ok"
 ```
 
-装完 bridge 会自动生成 `enableWidget: false` 的覆盖层（3D widget 暂不开放，原因见[已知限制](#已知限制)）。没装也能用，只是模型只有 Markdown。
+- Node 低于 22.19 或没有：安装 Node 22（macOS `brew install node`；或 nvm `nvm install 22 && nvm use 22`；其他平台 nodejs.org），重开终端。
+- 没有 git：macOS 可运行 `xcode-select --install`，其他平台安装 Git。
+- 没有 Chrome/Chromium ≥ 116：安装 Chrome 或 Chromium。
 
-### 1. 启动 bridge
+#### 1. 安装 DSH 并登录一次
+
+```sh
+npm install -g @deepseek-ai/dsh
+dsh --version
+DSH_HOME="$HOME/.dsh" dsh web
+```
+
+浏览器会打开 DSH Web。用 DeepSeek 账号登录、确认模型后，回终端按 `Ctrl-C`。这一步会生成 `~/.dsh` 和登录凭据。
+
+- 端口冲突：`DSH_HOME="$HOME/.dsh" dsh web --port 3090`。
+- 不希望自动开浏览器：`DSH_HOME="$HOME/.dsh" dsh web --no-open`，手动打开打印的地址。
+- 显式带上 `DSH_HOME`，避免 shell 里已有的 `DSH_HOME` 把登录写到别的环境。
+- 已经登录过（`~/.dsh/.credentials.yaml` 存在）可以跳过这一步。
+- 如果 `dsh: command not found`：重开终端，或把 npm 全局 bin 加入 `PATH`。
+
+#### 2. 拉仓库，安装 intelligent UI
 
 ```sh
 git clone https://github.com/Uhao86/dsh-easysider.git
 cd dsh-easysider
+DSH_HOME="$HOME/.dsh" dsh plugin --profile sdk add deepseek-harness-intelligent-ui@0.2.13
+```
+
+不装 intelligent-ui 也能跑，只是模型输出会退回纯 Markdown。bridge 启动时会为它生成关闭 3D widget 的覆盖层。
+
+#### 3. 启动 bridge
+
+```sh
+chmod +x start stop
 ./start
 ```
 
-输出示例：
+保持这个终端开着。看到 `pairing http://127.0.0.1:8787/` 即成功。停止用 `./stop` 或 `Ctrl-C`。
 
+#### 4. 加载扩展并配对
+
+1. 打开 `chrome://extensions`，开启 **开发者模式**。
+2. **加载已解压的扩展程序** → 选择仓库里的 `extension/` 目录。
+3. 把图标固定到工具栏，点它（或 `Alt+Shift+S`）。
+4. 第一次点 **自动获取 Token**。
+
+如果加载失败，看 [Chrome 扩展安装](#chrome-扩展安装) 的排查表。完成后进入下面的「第一次使用」。
+
+### 路径 B：给 agent（执行到手动装扩展前）
+
+把这一节交给 agent。Agent 必须：
+
+- 在任何全局安装、处理端口占用、删除文件之前先征得用户同意。
+- **不要自动安装 Chrome 扩展**，也不要修改用户的 Chrome profile。
+- 不要把 token、`.runtime`、`~/.dsh` 凭据写进仓库或公开输出。
+
+#### B0. Preflight（全部检查完再动手）
+
+```sh
+uname -s
+node -v
+git --version
+command -v dsh && dsh --version || echo "DSH_MISSING"
+command -v curl >/dev/null && echo "CURL_OK" || echo "CURL_MISSING"
+test -s "$HOME/.dsh/.credentials.yaml" && echo "CREDENTIALS_OK" || echo "SIGNIN_REQUIRED"
+test -d "/Applications/Google Chrome.app" || command -v google-chrome || command -v chromium || echo "CHROME_MISSING"
+lsof -nP -iTCP:8787 -sTCP:LISTEN 2>/dev/null || true
 ```
-  DSH EasySider bridge
-  ├─ api      http://127.0.0.1:8787/api/health
-  ├─ token    <36 位 token>
-  ├─ pairing  http://127.0.0.1:8787/
-  └─ agent    dsh --profile sdk  (deepseek-official/deepseek-flash)
-      DSH_HOME ~/.dsh  (与 dsh web 共用)
+
+期望：Node ≥ v22.19，git/Chrome 存在，8787 空闲。Node 或 Chrome 缺失就停下来告诉用户，不要静默安装系统软件；8787 被占用就先确认进程再处理。
+
+#### B1. 安装缺失的 Node / DSH（先征得同意）
+
+Node 缺失或低于 22.19：
+
+```sh
+# macOS
+brew install node
+# 或使用 nvm
+nvm install 22 && nvm use 22
+node -v
 ```
 
-bridge 只监听 `127.0.0.1`。第一次提问时才拉起 `dsh`，所以启动很快。
+没有 git：macOS 用 `xcode-select --install`，其他平台用对应包管理器安装。
 
-### 2. 加载扩展
+DSH 缺失：
 
-1. 打开 `chrome://extensions`
-2. 右上角打开 **开发者模式**
-3. **加载已解压的扩展程序** → 选择 `dsh-easysider/extension`
-4. 建议把图标固定到工具栏
+```sh
+npm install -g @deepseek-ai/dsh
+dsh --version
+```
 
-> 如果这里报错或按钮不可用，先看 [Chrome 扩展安装](#chrome-扩展安装)，里面有逐项排查和备选方案。
+不要静默改 PATH 或全局包；安装失败、需要 sudo、或 Chrome 缺失时，停下来让用户处理。
 
-### 3. 配对
+#### B2. 仅在需要时登录 dsh web
 
-点工具栏图标（或 `Alt+Shift+S`）打开侧边栏。第一次会看到"先连接本地 bridge"：
+```sh
+LOG="${TMPDIR:-/tmp}/dsh-easysider-web.log"
+DSH_HOME="$HOME/.dsh" dsh web --no-open --port 3090 > "$LOG" 2>&1 &
+DSH_WEB_PID=$!
+sleep 2
+cat "$LOG"
+# 把打印的 URL 给用户，请其登录；等待凭据出现（最多 5 分钟）
+i=0
+while [ "$i" -lt 60 ] && [ ! -s "$HOME/.dsh/.credentials.yaml" ]; do sleep 5; i=$((i+1)); done
+kill "$DSH_WEB_PID" 2>/dev/null || true
+test -s "$HOME/.dsh/.credentials.yaml" && echo "CREDENTIALS_OK" || echo "SIGNIN_TIMEOUT"
+```
 
-- 点 **自动获取 Token**：扩展会请求 `127.0.0.1:8787/api/pair`
-- 或打开 `http://127.0.0.1:8787/` 复制 token，粘到设置里
-- bridge 端口不是 8787 时，先在设置里改 **Bridge 地址**
+如果 `CREDENTIALS_OK` 已经是真，跳过这一步。如果用户已有一个 `dsh web` 在跑，直接用它完成登录。
 
-### 4. 用
+#### B3. 克隆或更新仓库
 
-打开任意网页，问它：
+```sh
+if [ -f package.json ] && grep -q '"name": "dsh-easysider"' package.json; then
+  git pull --ff-only
+elif [ -d dsh-easysider/.git ]; then
+  cd dsh-easysider && git pull --ff-only
+else
+  git clone https://github.com/Uhao86/dsh-easysider.git && cd dsh-easysider
+fi
+```
 
-- `总结这个页面，用三点`
-- `解释我选中的这段`
-- `帮我找到登录入口并点进去`
-- `这个表单怎么填？先看看有哪些字段`
-- `截图看看布局，哪里是主按钮？`
+#### B4. 安装 intelligent UI
 
-停止：运行 `./stop`（或 Ctrl-C 掉 bridge）。
+```sh
+DSH_HOME="$HOME/.dsh" dsh plugin --profile sdk add deepseek-harness-intelligent-ui@0.2.13
+test -d "$HOME/.dsh/profiles/sdk/node_modules/deepseek-harness-intelligent-ui" && echo "UI_PLUGIN_OK"
+```
+
+#### B5. 启动 bridge 并验证
+
+```sh
+mkdir -p .runtime
+chmod +x start stop
+./start > .runtime/bridge.log 2>&1 &
+i=0
+while [ "$i" -lt 40 ]; do
+  curl -sf http://127.0.0.1:8787/api/health >/dev/null && break
+  sleep 0.5; i=$((i+1))
+done
+curl -s http://127.0.0.1:8787/api/health
+node -p "require('./.runtime/config.json').token"
+```
+
+确认响应里 `"ok": true`、`"home"` 指向 `~/.dsh`，并记下 token 和配对地址 `http://127.0.0.1:8787/`。
+
+#### B6. STOP：交给用户手动装扩展
+
+**Agent 在这里停止。** 不要自动装 Chrome 扩展。明确告诉用户：
+
+1. 打开 `chrome://extensions`，开启开发者模式。
+2. 加载已解压的扩展程序 → 选择 `<仓库目录>/extension`。
+3. 固定图标 → 点击 → 点 **自动获取 Token**，并保持侧边栏打开。
+4. 装好后回复你。
+
+用户确认后，轮询 `curl -s http://127.0.0.1:8787/api/health`，直到 `"clients"` 大于 0；然后把下面的「第一次使用」交给用户。如果一直是 0，让用户贴扩展报错或控制台信息。
+
+## 第一次使用
+
+前提：bridge 在 `127.0.0.1:8787` 运行，扩展已加载并配对。
+
+1. 打开 <https://example.com>（或任意普通网页）。
+2. 点工具栏鲸娘图标，或按 `Alt+Shift+S`。
+3. 第一次会看到"先连接本地 bridge"；点 **自动获取 Token**。顶部页面卡片出现当前页标题即连接成功。
+4. 输入 `总结这个页面，用三点`。回答会以你的语言出现；需要读 DOM 时会出现工具行。
+5. 试浏览器操作：`点击页面上的 “More information” 链接`。
+6. 试富 UI：`用 ui_render 做一个包含 2 个 Stat、一个柱状图和一个表格的卡片`。没装 intelligent-ui 时会退化为 Markdown。
+7. 试思考：把 **思考** 切到 `深入`，再问一个复杂点的问题。
+8. 试历史：点右上角历史图标，置顶 / 重命名 / 归档。
+
+如果侧边栏一直显示"正在连接"，先确认 bridge 终端还开着、`curl http://127.0.0.1:8787/api/health` 正常，再看 [排错](#排错)。
 
 ---
 

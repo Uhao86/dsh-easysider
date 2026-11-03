@@ -62,83 +62,214 @@ If you want the `dsh web` GUI agent to control Chrome too, you can mount the sam
 
 ## Requirements
 
+You can start from zero; the quick start installs DSH and intelligent-ui for you.
+
 | Requirement | Notes |
 |---|---|
 | Node.js ≥ 22.19 | DSH runtime requirement |
 | Chrome / Chromium ≥ 116 | Side Panel API |
-| `dsh` on `PATH` | DeepSeek Harness CLI |
-| `dsh web` used at least once | Creates `~/.dsh` with your credentials and model choice |
-| Optional: `deepseek-harness-intelligent-ui` | Enables `ui_render` / `ui_compose` / `ui_patch`; without it you still get Markdown |
+| Git | Clone the repository |
+| A DeepSeek account | Sign-in during the first `dsh web` |
+| DSH CLI | Installed in the quick start with npm |
+| `deepseek-harness-intelligent-ui` | Installed into the `sdk` profile; optional but recommended |
 | macOS only for icon regeneration | `tools/make-icons.mjs` uses `sips` |
 
-The bridge has **no runtime npm dependencies**. You only need `npm install` for the browser tests (`playwright-core`).
-
----
+The bridge has **no runtime npm dependencies**. `npm install` is only for the browser tests (`playwright-core`).
 
 ## Quick start
 
-### 1. Clone
+Pick one path:
+
+- **Path A — for humans:** copy the commands from zero to your first chat.
+- **Path B — for agents:** hand this section to an agent; it checks, installs, starts and verifies everything up to the point where **you must load the extension manually**.
+
+> Commands target macOS / Linux. On Windows use the PowerShell equivalents, Git Bash or WSL.
+>
+> DSH itself: [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
+
+### Path A: for humans (from zero)
+
+#### 0. Check the environment
+
+```sh
+node -v            # needs v22.19 or newer
+git --version
+dsh --version      # "command not found" is expected before step 1
+(test -d "/Applications/Google Chrome.app" || command -v google-chrome || command -v chromium) && echo "Chrome ok"
+```
+
+- Missing or older Node: install Node 22 (`brew install node` on macOS, `nvm install 22 && nvm use 22` with nvm, or nodejs.org), then reopen the terminal.
+- Missing git: `xcode-select --install` on macOS; install Git elsewhere.
+- Missing Chrome/Chromium ≥ 116: install Chrome or Chromium.
+
+#### 1. Install DSH and sign in once
+
+```sh
+npm install -g @deepseek-ai/dsh
+dsh --version
+DSH_HOME="$HOME/.dsh" dsh web
+```
+
+The browser opens DSH Web. Sign in with your DeepSeek account, confirm the model, then press `Ctrl-C` in the terminal. This creates `~/.dsh` and your credentials.
+
+- Port conflict: `DSH_HOME="$HOME/.dsh" dsh web --port 3090`.
+- Do not open a browser automatically: `DSH_HOME="$HOME/.dsh" dsh web --no-open` and open the printed URL manually.
+- Keep `DSH_HOME` explicit so an ambient value cannot write the sign-in into another environment.
+- Already signed in (`~/.dsh/.credentials.yaml` exists): skip this step.
+- If `dsh: command not found`: reopen the terminal, or add npm's global bin directory to `PATH`.
+
+#### 2. Clone and install intelligent UI
 
 ```sh
 git clone https://github.com/Uhao86/dsh-easysider.git
 cd dsh-easysider
+DSH_HOME="$HOME/.dsh" dsh plugin --profile sdk add deepseek-harness-intelligent-ui@0.2.13
 ```
 
-### 2. Install the intelligent UI plugin (recommended, once)
+The panel still works without intelligent-ui, but answers fall back to Markdown. When the bridge starts it generates an overlay that disables the 3D widget.
+
+#### 3. Start the bridge
 
 ```sh
-DSH_HOME=~/.dsh dsh plugin --profile sdk add deepseek-harness-intelligent-ui@0.2.13
-```
-
-Pass `DSH_HOME` explicitly: the bridge deliberately ignores an ambient `DSH_HOME` (it may point at another harness), and the plugin must be installed into the profile the bridge actually uses.
-
-### 3. Start the bridge
-
-```sh
+chmod +x start stop
 ./start
 ```
 
-You should see:
+Keep this terminal open. You should see `pairing http://127.0.0.1:8787/`. Stop with `./stop` or `Ctrl-C`.
 
+#### 4. Load the extension and pair
+
+1. Open `chrome://extensions` and turn on **Developer mode**.
+2. Click **Load unpacked** and select the repository's `extension/` directory.
+3. Pin the icon and click it (or press `Alt+Shift+S`).
+4. On first run click **自动获取 Token** (Get token automatically).
+
+If loading fails, see [Chrome extension installation](#chrome-extension-installation). Otherwise continue to **Try it** below.
+
+### Path B: for agents (up to the manual extension install)
+
+Hand this section to the agent. The agent must:
+
+- Ask before any global install, port takeover or file deletion.
+- **Never install the Chrome extension automatically** and never modify the user's Chrome profile.
+- Never commit tokens, `.runtime` or `~/.dsh` credentials, and never print them into a public place.
+
+#### B0. Preflight (check everything first)
+
+```sh
+uname -s
+node -v
+git --version
+command -v dsh && dsh --version || echo "DSH_MISSING"
+command -v curl >/dev/null && echo "CURL_OK" || echo "CURL_MISSING"
+test -s "$HOME/.dsh/.credentials.yaml" && echo "CREDENTIALS_OK" || echo "SIGNIN_REQUIRED"
+test -d "/Applications/Google Chrome.app" || command -v google-chrome || command -v chromium || echo "CHROME_MISSING"
+lsof -nP -iTCP:8787 -sTCP:LISTEN 2>/dev/null || true
 ```
-  DSH EasySider bridge
-  ├─ api      http://127.0.0.1:8787/api/health
-  ├─ token    <random token>
-  ├─ pairing  http://127.0.0.1:8787/
-  └─ agent    dsh --profile sdk  (deepseek-official/deepseek-flash)
-      DSH_HOME ~/.dsh  (shared with dsh web)
+
+Expected: Node ≥ v22.19, git and Chrome present, port 8787 free. If Node or Chrome is missing, stop and tell the user; do not silently install system software. If 8787 is occupied, identify the process and ask before touching it.
+
+#### B1. Install missing Node / DSH (with consent)
+
+If Node is missing or older than 22.19:
+
+```sh
+# macOS
+brew install node
+# or with nvm
+nvm install 22 && nvm use 22
+node -v
 ```
 
-Stop it with `./stop`, or `Ctrl-C` in the terminal. On Windows, run `node server/bridge.mjs` instead.
+Missing git: `xcode-select --install` on macOS, or the platform package manager.
 
-### 4. Load the extension
+If DSH is missing:
 
-1. Open `chrome://extensions`
-2. Turn on **Developer mode**
-3. Click **Load unpacked** and select this repository's `extension/` directory
-4. Pin the toolbar icon
+```sh
+npm install -g @deepseek-ai/dsh
+dsh --version
+```
 
-The extension is **not on the Chrome Web Store**; loading it unpacked is the supported way to run it. Chrome will warn about reading and changing data on all sites and about the debugger permission — both are required for page control and full-page screenshots (see [Permissions](#privacy-security-and-permissions)).
+Do not silently change PATH or global packages; stop and ask if an install needs sudo, fails, or if Chrome is missing.
 
-### 5. Pair
+#### B2. Sign in only when needed
 
-Click the toolbar icon (or `Alt+Shift+S`). The first run shows an onboarding card:
+```sh
+LOG="${TMPDIR:-/tmp}/dsh-easysider-web.log"
+DSH_HOME="$HOME/.dsh" dsh web --no-open --port 3090 > "$LOG" 2>&1 &
+DSH_WEB_PID=$!
+sleep 2
+cat "$LOG"
+# Give the URL to the user. Wait for credentials (up to 5 minutes).
+i=0
+while [ "$i" -lt 60 ] && [ ! -s "$HOME/.dsh/.credentials.yaml" ]; do sleep 5; i=$((i+1)); done
+kill "$DSH_WEB_PID" 2>/dev/null || true
+test -s "$HOME/.dsh/.credentials.yaml" && echo "CREDENTIALS_OK" || echo "SIGNIN_TIMEOUT"
+```
 
-- Click **自动获取 Token** (Get token automatically); the panel asks `127.0.0.1:8787/api/pair`
-- Or open `http://127.0.0.1:8787/`, copy the token, and paste it into Settings
-- If the bridge uses another port, change **Bridge 地址** first
+Skip this when `CREDENTIALS_OK` is already true. If the user already runs `dsh web`, let them sign in there instead.
 
-### 6. Try it
+#### B3. Clone or update
 
-Open any page and ask:
+```sh
+if [ -f package.json ] && grep -q '"name": "dsh-easysider"' package.json; then
+  git pull --ff-only
+elif [ -d dsh-easysider/.git ]; then
+  cd dsh-easysider && git pull --ff-only
+else
+  git clone https://github.com/Uhao86/dsh-easysider.git && cd dsh-easysider
+fi
+```
 
-- `Summarize this page in three bullets.`
-- `Explain the selected paragraph.`
-- `Find the sign-in link and open it.`
-- `What fields does this form have?`
-- `Use ui_render to make a dashboard of the numbers on this page.`
+#### B4. Install intelligent UI
 
-The assistant answers in the language you use. When it needs the DOM it calls a browser tool; the tool row shows what happened.
+```sh
+DSH_HOME="$HOME/.dsh" dsh plugin --profile sdk add deepseek-harness-intelligent-ui@0.2.13
+test -d "$HOME/.dsh/profiles/sdk/node_modules/deepseek-harness-intelligent-ui" && echo "UI_PLUGIN_OK"
+```
+
+#### B5. Start the bridge and verify
+
+```sh
+mkdir -p .runtime
+chmod +x start stop
+./start > .runtime/bridge.log 2>&1 &
+i=0
+while [ "$i" -lt 40 ]; do
+  curl -sf http://127.0.0.1:8787/api/health >/dev/null && break
+  sleep 0.5; i=$((i+1))
+done
+curl -s http://127.0.0.1:8787/api/health
+node -p "require('./.runtime/config.json').token"
+```
+
+Verify `"ok": true`, `"home"` points at `~/.dsh`, and the token exists. Note the pairing URL `http://127.0.0.1:8787/`.
+
+#### B6. STOP — hand off to the user
+
+**The agent stops here.** Do not install the Chrome extension automatically. Tell the user:
+
+1. Open `chrome://extensions` and enable Developer mode.
+2. Load unpacked → select `<repository>/extension`.
+3. Pin the icon → click it → click **自动获取 Token**, and keep the side panel open.
+4. Reply when it is installed.
+
+After the user confirms, poll `curl -s http://127.0.0.1:8787/api/health` until `"clients"` is greater than 0, then hand over **Try it**. If it stays at 0, ask for the extension error or the panel console.
+
+## Try it
+
+Prerequisites: the bridge is running on `127.0.0.1:8787`, and the extension is loaded and paired.
+
+1. Open <https://example.com> (or any normal page).
+2. Click the whale-girl toolbar icon or press `Alt+Shift+S`.
+3. On first run click **自动获取 Token**. The page card at the top shows the current tab title when connected.
+4. Ask `Summarize this page in three bullets.` The answer arrives in your language; tool rows appear when the agent reads the DOM.
+5. Try an action: `Click the “More information” link on the page.`
+6. Try rich UI: `Use ui_render to make a card with 2 Stat tiles, a bar chart and a table.` Without intelligent-ui this falls back to Markdown.
+7. Try reasoning: set **思考** to `深入` (Deep) and ask a harder question.
+8. Try history: open the history icon at the top right; pin, rename or archive a conversation.
+
+If the panel stays on "Connecting", confirm the bridge terminal is still open and `curl http://127.0.0.1:8787/api/health` works; then see [Troubleshooting](#troubleshooting).
 
 ---
 
@@ -280,6 +411,27 @@ You can narrow `<all_urls>` to specific sites if you only use the panel there; `
 **No local execution.** The generated `sdk` overlay disables `bash`, PowerShell, file read/write, subagents, workflows, goals and plan mode. The agent can read pages, call browser tools and use web search/fetch.
 
 ---
+
+
+## Chrome extension installation
+
+Load unpacked is the supported path (the extension is not on the Chrome Web Store):
+
+1. Open `chrome://extensions`
+2. Turn on **Developer mode**
+3. Click **Load unpacked** and select this repository's `extension/` directory
+4. Pin the toolbar icon
+
+| Symptom | Check |
+|---|---|
+| "Could not load extension" / manifest missing | Select the `extension/` folder that contains `manifest.json`, not the repository root |
+| The Load button is greyed out | Developer mode is off |
+| "This extension may have been corrupted" | Re-clone or re-download; check file permissions |
+| Blocked by enterprise policy | `chrome://policy`: `ExtensionInstallBlocklist` / `ExtensionSettings`; ask an admin or use another browser |
+| `--load-extension` has no effect (automation) | Chrome 137+ gates the command-line flag for branded builds; manual loading is unaffected. Use Chrome for Testing for automation |
+| Icon missing from the toolbar | Pin it from the puzzle menu or the extension card |
+
+If manual loading still fails, choose one of these paths: (1) manual troubleshooting, (2) Chrome for Testing for automated verification, or (3) no-browser tests (`node test/smoke.mjs`, `node test/sessions.mjs`).
 
 ## Limitations
 
