@@ -125,9 +125,9 @@ The extension is **not on the Chrome Web Store**; loading it unpacked is the sup
 
 Click the toolbar icon (or `Alt+Shift+S`). The first run shows an onboarding card:
 
-- Click **Get token automatically**; the panel asks `127.0.0.1:8787/api/pair`
+- Click **自动获取 Token** (Get token automatically); the panel asks `127.0.0.1:8787/api/pair`
 - Or open `http://127.0.0.1:8787/`, copy the token, and paste it into Settings
-- If the bridge uses another port, change **Bridge URL** first
+- If the bridge uses another port, change **Bridge 地址** first
 
 ### 6. Try it
 
@@ -190,15 +190,15 @@ Known gaps:
 
 ## Reasoning effort
 
-Use the **Thinking** selector next to the composer:
+Use the **思考** selector next to the composer. The options are Chinese in the current UI:
 
 | UI label | `reasoningEffort` |
 |---|---|
-| Auto | omitted (model default) |
-| Fast | `off` |
-| Standard | `low` |
-| Deep | `high` |
-| Maximum | `max` |
+| 自动 (Auto) | omitted (model default) |
+| 快速 (Fast) | `off` |
+| 标准 (Standard) | `low` |
+| 深入 (Deep) | `high` |
+| 极限 (Maximum) | `max` |
 
 Changing it while idle calls `POST /api/settings`, persists the choice, and restarts the DSH runtime so the next message uses the new effort. While a turn is running the request is refused (HTTP 409) to avoid killing it mid-flight.
 
@@ -206,7 +206,7 @@ Changing it while idle calls `POST /api/settings`, persists the choice, and rest
 
 ## Session history
 
-The history sheet supports:
+The **历史对话** sheet supports (the icons are 置顶 / 重命名 / 归档):
 
 - **Pin** — pinned conversations sort above recent ones.
 - **Rename** — inline edit; Enter saves, Esc cancels. Custom titles are never overwritten by the first message.
@@ -240,7 +240,7 @@ The bridge accepts flags or environment variables and persists port, token, mode
 | runtime directory | `DSH_SIDEBAR_RUNTIME` | `.runtime` |
 | `dsh` binary | `DSH_BIN` | auto-detected |
 
-In the side-panel settings you can change the bridge URL and token, and toggle **Page** (attach page text) and **Screenshot** (attach the visible area).
+In the side-panel **设置** you can change the bridge URL and token, and toggle **页面** (attach page text) and **截图** (attach the visible area).
 
 Session ids look like `sidebar-<uuid>`. UI message caches live in `chrome.storage.local`; full events live in `DSH_HOME/sessions/`.
 
