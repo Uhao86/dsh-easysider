@@ -1,5 +1,107 @@
 #!/bin/sh
 # Start the local bridge for the DSH EasySider Chrome side panel.
-# The bridge binds 127.0.0.1 only and boots `dsh --profile sdk` on demand.
+#
+# One command does the boring parts:
+#   - checks Node >= 22.19
+#   - finds `dsh`, or offers to install it
+#   - opens `dsh web` once when ~/.dsh has no credentials
+#   - optionally installs the intelligent-ui plugin (--with-ui)
+#   - starts the bridge on 127.0.0.1
+#
+# Usage:
+#   ./start [--with-ui] [bridge options]
+#   ./stop
 cd "$(dirname "$0")" || exit 1
+
+WITH_UI=0
+if [ "${1:-}" = "--with-ui" ]; then
+  WITH_UI=1
+  shift
+fi
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+  cat <<'EOF'
+用法: ./start [--with-ui] [bridge 参数]
+
+  --with-ui    启动前安装/启用 intelligent-ui 富 UI 插件（可选，推荐）
+  --port N     bridge 端口（默认 8787）
+  --dsh-home   DSH_HOME（默认 ~/.dsh，与 dsh web 共用）
+  --model ID   模型（默认 deepseek-flash）
+
+停止: ./stop
+EOF
+  exit 0
+fi
+
+say() { printf '%s\n' "$*"; }
+die() { printf '错误: %s\n' "$*" >&2; exit 1; }
+
+# Node.js >= 22.19
+command -v node >/dev/null 2>&1 || die "没有找到 node。请先安装 Node.js 22.19+：https://nodejs.org/"
+node -e 'const [a,b]=process.versions.node.split(".").map(Number); process.exit(a>22||(a===22&&b>=19)?0:1)' \
+  || die "Node 版本是 $(node -v)，需要 22.19 或更高。"
+
+# Resolve the DSH_HOME the bridge will use (--dsh-home / DSH_SIDEBAR_DSH_HOME / ~/.dsh)
+DSH_HOME_DIR="${DSH_SIDEBAR_DSH_HOME:-$HOME/.dsh}"
+prev=""
+for arg in "$@"; do
+  case "$arg" in
+    --dsh-home=*) DSH_HOME_DIR="${arg#--dsh-home=}" ;;
+  esac
+  if [ "$prev" = "--dsh-home" ] && [ -n "$arg" ]; then DSH_HOME_DIR="$arg"; fi
+  prev="$arg"
+done
+[ -n "$DSH_HOME_DIR" ] || DSH_HOME_DIR="$HOME/.dsh"
+
+# Locate dsh: DSH_BIN, PATH, then the usual npm-global locations.
+DSH="${DSH_BIN:-}"
+if [ -n "$DSH" ] && [ ! -x "$DSH" ]; then DSH=""; fi
+if [ -z "$DSH" ]; then
+  DSH=$(command -v dsh 2>/dev/null || true)
+fi
+if [ -z "$DSH" ]; then
+  for candidate in "$HOME/.npm-global/bin/dsh" /opt/homebrew/bin/dsh /usr/local/bin/dsh; do
+    if [ -x "$candidate" ]; then DSH="$candidate"; break; fi
+  done
+fi
+if [ -z "$DSH" ] || [ ! -x "$DSH" ]; then
+  if [ -t 0 ]; then
+    printf '没有找到 dsh。现在安装 @deepseek-ai/dsh？[Y/n] '
+    read -r answer
+    case "$answer" in
+      [nN]*) die "请先运行: npm install -g @deepseek-ai/dsh" ;;
+    esac
+    npm install -g @deepseek-ai/dsh || die "安装失败，请手动运行: npm install -g @deepseek-ai/dsh"
+    DSH=$(command -v dsh 2>/dev/null || true)
+    if [ -z "$DSH" ]; then DSH="$HOME/.npm-global/bin/dsh"; fi
+    [ -x "$DSH" ] || die "安装后仍找不到 dsh，请重开终端或设置 DSH_BIN"
+  else
+    die "没有找到 dsh。请先运行: npm install -g @deepseek-ai/dsh"
+  fi
+fi
+
+# Sign in once, sharing the same DSH_HOME as `dsh web`.
+if [ ! -s "$DSH_HOME_DIR/.credentials.yaml" ]; then
+  if [ -t 0 ]; then
+    say "还没有登录 DSH（缺少 $DSH_HOME_DIR/.credentials.yaml）。"
+    say "即将打开 dsh web 登录页；登录完成后回到终端按 Ctrl-C，启动会继续。"
+    WEB_PORT=$(node -e 'const net=require("net");const s=net.createServer();s.listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close()})')
+    DSH_HOME="$DSH_HOME_DIR" "$DSH" web --port "$WEB_PORT" || true
+    [ -s "$DSH_HOME_DIR/.credentials.yaml" ] \
+      || die "仍未检测到登录凭据。请手动运行 DSH_HOME=\"$DSH_HOME_DIR\" dsh web 登录后重试。"
+  else
+    die "还没有登录 DSH。请先运行: DSH_HOME=\"$DSH_HOME_DIR\" dsh web"
+  fi
+fi
+
+# Optional rich UI. Keep it opt-in; plain Markdown works without it.
+UI_DIR="$DSH_HOME_DIR/profiles/sdk/node_modules/deepseek-harness-intelligent-ui"
+if [ "$WITH_UI" = 1 ] && [ ! -d "$UI_DIR" ]; then
+  say "安装富 UI 插件 deepseek-harness-intelligent-ui ..."
+  DSH_HOME="$DSH_HOME_DIR" "$DSH" plugin --profile sdk add deepseek-harness-intelligent-ui \
+    || say "富 UI 安装失败，继续以 Markdown 模式启动。"
+elif [ "$WITH_UI" = 0 ] && [ ! -d "$UI_DIR" ]; then
+  say "提示: 未安装富 UI 插件（可选）。需要时用 ./start --with-ui"
+fi
+
+say "启动 bridge ..."
 exec node server/bridge.mjs "$@"
