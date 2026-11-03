@@ -8,13 +8,16 @@
 
 它把 [DeepSeek Harness](https://www.deepseek.com/en/harness/) 的 agent 放进 Chrome，运行在 **`dsh web` 的同一个 `DSH_HOME`（默认 `~/.dsh`）** 里：登录凭据、模型选择、会话目录都和 `dsh web` 共用。
 
-![DSH EasySider](test/ui-sample.png)
 
-### 富 UI 与思考强度
+## 富 UI 与思考强度
 
 - **富 UI**：侧边栏直接挂载了 [`deepseek-harness-intelligent-ui`](https://www.npmjs.com/package/deepseek-harness-intelligent-ui)（0.2.13）。模型的 `ui_render` / `ui_compose` / `ui_patch` 不会显示成一行工具调用，而是渲染成原生卡片、KPI、表格、折线/柱状/面积/饼图、散点、热力图、时间线、代码 diff、文件树、JSON、图片、Choice/Form/Button 等组件。
 - **原位更新**：`ui_patch` 会改之前消息里的同一张卡，而不是再贴一张（跨消息也能定位）。
 - **思考强度**：输入框旁可选 `自动 / 快速 / 标准 / 深入 / 极限`，对应 SDK 的 `reasoningEffort`（省略 / `off` / `low` / `high` / `max`）。切换会重启 DSH 运行时，下一轮生效。
+
+<p align="center"><img src="test/ui-sample.png" width="320" alt="富 UI：KPI、折线图、可排序表格"></p>
+
+<p align="center"><em>图：侧边栏里的富 UI——KPI、折线图、可排序表格；<code>ui_patch</code> 会原位更新这张卡。</em></p>
 
 ---
 
@@ -198,7 +201,9 @@ Widget（`ui_render_widget`）默认不开放：MV3 扩展页的 CSP 会拦住�
 - **归档 / 取消归档**：归档后从主列表折叠到“显示已归档”，可随时恢复。
 - 点行切换会话；当前会话有高亮。
 
-![历史会话](test/sessions.png)
+<p align="center"><img src="test/sessions.png" width="320" alt="历史会话：置顶、重命名、归档"></p>
+
+<p align="center"><em>图：历史对话面板的置顶、重命名、归档。</em></p>
 
 bridge 的会话索引在 `.runtime/sessions.json`，消息本体在 `DSH_HOME/sessions/`。相关 API：
 

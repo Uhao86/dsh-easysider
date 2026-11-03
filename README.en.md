@@ -6,7 +6,6 @@ Rich answers render as native cards, tables, charts, timelines and forms through
 
 [简体中文](README.md) · **English**
 
-![DSH EasySider](test/ui-sample.png)
 
 > **Status:** experimental community project. It is not an official DeepSeek product and is not affiliated with or endorsed by DeepSeek.
 
@@ -180,6 +179,10 @@ When the `intelligent-ui` plugin is installed, the side panel renders these DSH 
 
 Supported components include Card, Stack, Grid, Tabs, Text, Code, Alert, Badge, Divider, Stat, Progress, List, Table (sort/search/page/CSV), Chart (bar/line/area/pie), Scatter, Heatmap, Timeline, CodeDiff, FileTree, JsonView, Image, Gallery, Video, Choice, Button and Form.
 
+<p align="center"><img src="test/ui-sample.png" width="320" alt="Rich UI in the side panel"></p>
+
+<p align="center"><em>Rich UI rendered natively: KPI tiles, a line chart and a sortable table. <code>ui_patch</code> updates the card in place.</em></p>
+
 Known gaps:
 
 - `ui_render_widget` (3D / custom HTML) is **disabled** by the generated profile patch: MV3's extension CSP blocks arbitrary inline and remote scripts. Use the full `dsh web` app for widgets.
@@ -212,7 +215,9 @@ The **历史对话** sheet supports (the icons are 置顶 / 重命名 / 归档):
 - **Rename** — inline edit; Enter saves, Esc cancels. Custom titles are never overwritten by the first message.
 - **Archive / restore** — archived conversations fold into “Show archived”.
 
-![Session history](test/sessions.png)
+<p align="center"><img src="test/sessions.png" width="320" alt="Session history: pin, rename, archive"></p>
+
+<p align="center"><em>The history sheet: pin, rename and archive.</em></p>
 
 The title index lives in `.runtime/sessions.json`; full session logs live under `DSH_HOME/sessions/`. For development cleanup:
 
