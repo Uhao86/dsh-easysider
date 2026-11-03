@@ -304,7 +304,7 @@ node test/ui.mjs            # real Chrome: pairing, read, click, screenshot, ui_
 node test/probe-live.mjs    # probe a running bridge on 8787
 ```
 
-The browser tests need Chrome for Testing (branded Chrome 137+ ignores `--load-extension`). They auto-discover Playwright's Chromium cache; set `DSH_TEST_CHROME=/path/to/chrome` to override. The tests create isolated `DSH_HOME`s under `.runtime-*` and only symlink the credentials file, so they do not write to your real session directory.
+The browser tests need Chrome for Testing (branded Chrome 137+ ignores `--load-extension`). They auto-discover Playwright's Chromium cache; set `DSH_TEST_CHROME=/path/to/chrome` to override. The tests create isolated `DSH_HOME`s under `.runtime-*` and only symlink the credentials file, so they do not write to your real session directory. `test/ui.mjs` also expects the intelligent-ui plugin in the `sdk` profile; skip it if you have not installed the plugin.
 
 To regenerate icons:
 

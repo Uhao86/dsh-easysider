@@ -361,7 +361,7 @@ node tools/clean-test-sessions.mjs --apply  # 清掉本轮开发产生的一次�
 `test/ui.mjs` 需要 Chrome for Testing（品牌 Chrome 137+ 不再接受 `--load-extension`）。脚本会自动搜索
 Playwright 的 Chromium 缓存（macOS/Linux/Windows），也可以用 `DSH_TEST_CHROME` 指定。这些测试都会创建
 `.runtime-test` / `.runtime-ui` / `.runtime-render` / `.runtime-sessions-*` 里的隔离 `DSH_HOME`
-（只软链 `~/.dsh/.credentials.yaml`），不会写你的正式会话目录。`test/ui.mjs` 会检查 `ui_render` 渲染成卡片、`ui_patch` 原位更新且不重复出卡片；
+（只软链 `~/.dsh/.credentials.yaml`），不会写你的正式会话目录。`test/ui.mjs` 会检查 `ui_render` 渲染成卡片、`ui_patch` 原位更新且不重复出卡片；它要求 `sdk` profile 已安装 intelligent-ui，否则跳过该测试；
 `test/sessions-ui.mjs` 用真实面板验证置顶/重命名/归档。
 
 ### 目录
