@@ -1,383 +1,495 @@
 # DSH EasySider
 
-A Chrome side panel that puts a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) agent beside the page you are reading. It understands the current tab, answers questions from the page, and can actually operate the browser: click, type, scroll, navigate, find text, highlight, and take screenshots.
+> Chrome 超级侧边栏，基于 `dsh web`。
 
-Rich answers render as native cards, tables, charts, timelines and forms through [`deepseek-harness-intelligent-ui`](https://github.com/dreamfarer-space/deepseek-harness-intelligent-ui) instead of a wall of Markdown.
+[English](README.en.md) · **简体中文**
 
-**English** · [简体中文](README.zh-CN.md)
+一个 Chrome MV3 侧边栏：像 Gemini 那样读当前页面、回答问题，并**真的操作浏览器**——点击、输入、滚动、跳转、截图。
+
+它把 [DeepSeek Harness](https://www.deepseek.com/en/harness/) 的 agent 放进 Chrome，运行在 **`dsh web` 的同一个 `DSH_HOME`（默认 `~/.dsh`）** 里：登录凭据、模型选择、会话目录都和 `dsh web` 共用。
 
 ![DSH EasySider](test/ui-sample.png)
 
-> **Status:** experimental community project. It is not an official DeepSeek product and is not affiliated with or endorsed by DeepSeek.
+### 富 UI 与思考强度
+
+- **富 UI**：侧边栏直接挂载了 [`deepseek-harness-intelligent-ui`](https://www.npmjs.com/package/deepseek-harness-intelligent-ui)（0.2.13）。模型的 `ui_render` / `ui_compose` / `ui_patch` 不会显示成一行工具调用，而是渲染成原生卡片、KPI、表格、折线/柱状/面积/饼图、散点、热力图、时间线、代码 diff、文件树、JSON、图片、Choice/Form/Button 等组件。
+- **原位更新**：`ui_patch` 会改之前消息里的同一张卡，而不是再贴一张（跨消息也能定位）。
+- **思考强度**：输入框旁可选 `自动 / 快速 / 标准 / 深入 / 极限`，对应 SDK 的 `reasoningEffort`（省略 / `off` / `low` / `high` / `max`）。切换会重启 DSH 运行时，下一轮生效。
 
 ---
 
-## Highlights
+## 它现在能做什么
 
-- **Page-aware chat** — title, URL, readable text, heading outline and the current selection are attached to your message (optional).
-- **Browser control** — read the page, snapshot interactive elements with stable `e1…eN` refs, click, type, scroll, find, navigate, highlight, wait and screenshot.
-- **Intelligent UI** — the agent can answer with live components (`ui_render`, `ui_compose`, `ui_patch`), and the side panel renders them natively. Edits patch the same card in place.
-- **Reasoning effort** — switch between auto / fast / standard / deep / maximum between turns.
-- **Session history** — pin, rename, archive and restore conversations.
-- **Local by default** — the bridge listens on `127.0.0.1` only and shares the `dsh web` environment (`~/.dsh`), so credentials and the model are the ones you already use.
-- **Narrow tool surface** — the side-panel agent has browser tools and web read/search, but **no shell, file system, subagents or workflow tools**.
+- **读懂当前页**：标题、URL、正文、标题大纲、用户选中的文字。发消息时自动附带（可关）。
+- **截图理解**：附带当前可见区域截图，模型能看布局、图片、按钮状态。
+- **交互元素快照**：把链接、按钮、输入框、下拉框编成稳定的 `e1…eN` 引用，模型按引用操作。
+- **真实操作**：点击、输入（可提交）、滚动、页内查找、前进/后退/刷新、打开链接（当前页或新标签页）、等待元素出现。
+- **高亮**：在页面上直接框出模型要说的位置，操作时也会自动闪一下。
+- **多轮对话**：会话保存在 `DSH_HOME/sessions/`，换标签页、关侧边栏、重启 bridge 都能接着聊；历史列表支持**置顶、重命名、归档/取消归档**。
+- **停止**：随时打断当前回合，下一条消息继续同一会话。
+- **富 UI**：卡片、KPI、表格、图表、时间线、Choice/Form，而不是只有一大段 Markdown。
+- **思考强度**：快速 / 标准 / 深入 / 极限，随时切换。
+- **页面右键菜单**："用 DSH 总结这个页面 / 解释选中内容"。
+- **快捷键**：`Alt+Shift+S` 打开侧边栏（可在 `chrome://extensions/shortcuts` 改）。
+
+![操作测试页](test/test-page.png)
 
 ---
 
-## How it works
+## 架构
 
 ```
 ┌──────────────────────── Chrome ────────────────────────┐
-│  side panel (HTML/JS)          content script           │
-│  · chat UI + rich UI renderer  · read page / snapshot   │
-│  · executes browser tools      · click / type / wait    │
-│         │  chrome.tabs / chrome.scripting               │
-└─────────┼───────────────────────────────────────────────┘
-          │  HTTP + SSE on 127.0.0.1:8787 (bearer token)
-┌─────────▼───────────────────────────────────────────────┐
-│  server/bridge.mjs                                      │
-│  · owns the DSH child process and streams its events     │
-│  · routes MCP tool calls to the side panel               │
-└─────────┬───────────────────────────────────────────────┘
-          │  stdio JSON-RPC
-┌─────────▼───────────────────────────────────────────────┐
-│  dsh --profile sdk   (DSH_HOME=~/.dsh by default)       │
-│  · model, sessions, compaction, credentials              │
-│  · browser tools via MCP (server/browser-mcp.mjs)        │
-│  · intelligent-ui plugin (optional, recommended)         │
-└─────────┬───────────────────────────────────────────────┘
-          │  MCP stdio
-┌─────────▼───────────────────────────────────────────────┐
+│  sidepanel.html/js          content.js                 │
+│  · 聊天 UI / Markdown       · 读正文、元素快照          │
+│  · SSE 接收 / 工具执行       · 点击、输入、高亮、等待     │
+│         │  chrome.tabs / chrome.scripting              │
+└─────────┼──────────────────────────────────────────────┘
+          │  HTTP + SSE（127.0.0.1，token）
+┌─────────▼──────────────────────────────────────────────┐
+│  server/bridge.mjs        ：8787                        │
+│  · 持有 DSH 子进程，转发事件                             │
+│  · /api/chat  /api/stream  /api/tool-result  /api/pair  │
+│  · 把 MCP 工具调用路由给侧边栏                            │
+└─────────┬──────────────────────────────────────────────┘
+          │  stdio JSON-RPC（newline framed）
+┌─────────▼──────────────────────────────────────────────┐
+│  DSH_HOME=~/.dsh                                       │
+│  dsh --profile sdk --patch .runtime/sidebar.patch.yml   │
+│  · 模型 / 会话 / 压缩 / 附件 / 与 dsh web 相同凭据        │
+│  · 禁用了 bash、文件、子代理、workflow 等本地工具          │
+│  · 挂载 MCP server：server/browser-mcp.mjs               │
+│  · 挂载 intelligent-ui：ui_render / ui_compose / ui_patch │
+└─────────┬──────────────────────────────────────────────┘
+          │  MCP stdio（12 个 browser_* 工具）
+┌─────────▼──────────────────────────────────────────────┐
 │  server/browser-mcp.mjs                                 │
-│  forwards each browser_* call back to the bridge         │
-└─────────────────────────────────────────────────────────┘
+│  每个工具调用 POST 回 bridge /internal/tool → 侧边栏执行  │
+└────────────────────────────────────────────────────────┘
 ```
 
-### Why `sdk` and not the `web` profile?
+### 为什么是 `sdk` 而不是 `web`
 
-`dsh web` is an HTTP application (web server + browser frontend) and does not expose a chat stream to external clients. The bridge needs a long-lived stdio agent, so it uses DSH's `sdk` composition while pointing `DSH_HOME` at the `dsh web` environment. The agent core, model, credentials and session store are the same; only the transport differs. The side panel has its own UI renderer for the intelligent-ui component tree.
+`dsh web` 的 profile 组合是 `@deepseek-ai/dsh-base` + `@deepseek-ai/dsh-web-app`，后者是一个 HTTP 应用（Web 服务器 + 浏览器前端），没有给外部客户端留聊天接口。bridge 需要一个能通过 stdio 长连接驱动的 agent，所以用 DSH 自带的 `sdk` 传输组合，但把 `DSH_HOME` 指向 `dsh web` 的环境。两者的 agent 底座（`dsh-base`、模型、工具、凭据、会话存储）是同一套；区别只在传输层。
 
-If you want the `dsh web` GUI agent to control Chrome too, you can mount the same MCP server into the `web` profile — see [`examples/web-profile-browser.patch.yml`](examples/web-profile-browser.patch.yml).
+要"字面意义上"让 `dsh web` 的 GUI agent 也拥有浏览器工具，见[与 dsh web profile 的关系](#与-dsh-web-profile-的关系)。
 
----
-
-## Requirements
-
-| Requirement | Notes |
-|---|---|
-| Node.js ≥ 22.19 | DSH runtime requirement |
-| Chrome / Chromium ≥ 116 | Side Panel API |
-| `dsh` on `PATH` | DeepSeek Harness CLI |
-| `dsh web` used at least once | Creates `~/.dsh` with your credentials and model choice |
-| Optional: `deepseek-harness-intelligent-ui` | Enables `ui_render` / `ui_compose` / `ui_patch`; without it you still get Markdown |
-| macOS only for icon regeneration | `tools/make-icons.mjs` uses `sips` |
-
-The bridge has **no runtime npm dependencies**. You only need `npm install` for the browser tests (`playwright-core`).
+工具集被刻意收窄为"浏览器 + 联网读取"：没有 shell、没有文件读写、没有子代理。因为页面内容是不可信输入，不能给它本地执行权。
 
 ---
 
-## Quick start
+## 前置条件
 
-### 1. Clone
+- Node.js ≥ 22.19（DSH 运行时要求）
+- Chrome / Chromium ≥ 116（侧边栏 API）
+- 已安装 DSH，且 `dsh` 在 `PATH` 中
+- 至少用过一次 `dsh web`，让 `~/.dsh` 里有登录凭据和模型配置
+- 富 UI 需要把 intelligent-ui 装进 `sdk` profile（见下方第 0 步）
+- 生成图标需要 macOS 的 `sips`；不改图标不需要
 
 ```sh
-git clone https://github.com/Uhao86/dsh-easysider.git
-cd dsh-easysider
+# 检查
+node -v
+dsh --version
+curl -s http://127.0.0.1:8787/api/health   # bridge 启动后
 ```
 
-### 2. Install the intelligent UI plugin (recommended, once)
+
+## 快速开始
+
+### 0. 安装 intelligent UI 插件（只需一次）
 
 ```sh
 DSH_HOME=~/.dsh dsh plugin --profile sdk add deepseek-harness-intelligent-ui@0.2.13
 ```
 
-Pass `DSH_HOME` explicitly: the bridge deliberately ignores an ambient `DSH_HOME` (it may point at another harness), and the plugin must be installed into the profile the bridge actually uses.
+装完 bridge 会自动生成 `enableWidget: false` 的覆盖层（3D widget 暂不开放，原因见[已知限制](#已知限制)）。没装也能用，只是模型只有 Markdown。
 
-### 3. Start the bridge
+### 1. 启动 bridge
 
 ```sh
+git clone https://github.com/Uhao86/dsh-easysider.git
+cd dsh-easysider
 ./start
 ```
 
-You should see:
+输出示例：
 
 ```
   DSH EasySider bridge
   ├─ api      http://127.0.0.1:8787/api/health
-  ├─ token    <random token>
+  ├─ token    <36 位 token>
   ├─ pairing  http://127.0.0.1:8787/
   └─ agent    dsh --profile sdk  (deepseek-official/deepseek-flash)
-      DSH_HOME ~/.dsh  (shared with dsh web)
+      DSH_HOME ~/.dsh  (与 dsh web 共用)
 ```
 
-Stop it with `./stop`, or `Ctrl-C` in the terminal. On Windows, run `node server/bridge.mjs` instead.
+bridge 只监听 `127.0.0.1`。第一次提问时才拉起 `dsh`，所以启动很快。
 
-### 4. Load the extension
+### 2. 加载扩展
 
-1. Open `chrome://extensions`
-2. Turn on **Developer mode**
-3. Click **Load unpacked** and select this repository's `extension/` directory
-4. Pin the toolbar icon
+1. 打开 `chrome://extensions`
+2. 右上角打开 **开发者模式**
+3. **加载已解压的扩展程序** → 选择 `dsh-easysider/extension`
+4. 建议把图标固定到工具栏
 
-The extension is **not on the Chrome Web Store**; loading it unpacked is the supported way to run it. Chrome will warn about reading and changing data on all sites and about the debugger permission — both are required for page control and full-page screenshots (see [Permissions](#privacy-security-and-permissions)).
+> 如果这里报错或按钮不可用，先看 [Chrome 扩展安装](#chrome-扩展安装)，里面有逐项排查和备选方案。
 
-### 5. Pair
+### 3. 配对
 
-Click the toolbar icon (or `Alt+Shift+S`). The first run shows an onboarding card:
+点工具栏图标（或 `Alt+Shift+S`）打开侧边栏。第一次会看到"先连接本地 bridge"：
 
-- Click **自动获取 Token** (Get token automatically); the panel asks `127.0.0.1:8787/api/pair`
-- Or open `http://127.0.0.1:8787/`, copy the token, and paste it into Settings
-- If the bridge uses another port, change **Bridge 地址** first
+- 点 **自动获取 Token**：扩展会请求 `127.0.0.1:8787/api/pair`
+- 或打开 `http://127.0.0.1:8787/` 复制 token，粘到设置里
+- bridge 端口不是 8787 时，先在设置里改 **Bridge 地址**
 
-### 6. Try it
+### 4. 用
 
-Open any page and ask:
+打开任意网页，问它：
 
-- `Summarize this page in three bullets.`
-- `Explain the selected paragraph.`
-- `Find the sign-in link and open it.`
-- `What fields does this form have?`
-- `Use ui_render to make a dashboard of the numbers on this page.`
+- `总结这个页面，用三点`
+- `解释我选中的这段`
+- `帮我找到登录入口并点进去`
+- `这个表单怎么填？先看看有哪些字段`
+- `截图看看布局，哪里是主按钮？`
 
-The assistant answers in the language you use. When it needs the DOM it calls a browser tool; the tool row shows what happened.
+停止：运行 `./stop`（或 Ctrl-C 掉 bridge）。
 
 ---
 
-## Browser tools
+## 工具清单
 
-The model sees `mcp__browser__browser_*`; the UI shows short Chinese labels.
+模型看到的是 `mcp__browser__browser_*`，界面上显示为中文动作。
 
-| Tool | What it does |
+| 工具 | 作用 |
 |---|---|
-| `browser_status` | List tabs and identify the active one |
-| `browser_read` | Title, URL, selection, heading outline and main text |
-| `browser_snapshot` | Interactive elements with stable refs (`e1…eN`) |
-| `browser_open` | Navigate the active tab or a new tab, then wait for load |
-| `browser_click` | Click by ref, CSS selector or visible text |
-| `browser_type` | Type into an input, optionally submit |
-| `browser_scroll` | Up/down/top/bottom, or scroll an element into view |
-| `browser_find` | Find visible text and return snippets plus refs |
-| `browser_screenshot` | Visible area (default) or full page via CDP |
-| `browser_history` | Back, forward, reload |
-| `browser_highlight` | Draw a box around refs or a text match |
-| `browser_wait` | Wait for a selector, text, or a fixed delay |
+| `browser_status` | 列出标签页，标出活动标签页 |
+| `browser_read` | 标题、URL、选中文字、标题大纲、正文（默认 14k 字符，上限 60k） |
+| `browser_snapshot` | 可交互元素 + 稳定 `ref`（`e1…`），跳转/刷新后需重新快照 |
+| `browser_open` | 打开 URL（当前标签页或新标签页），等待加载 |
+| `browser_click` | 按 `ref` / CSS selector / 可见文字点击 |
+| `browser_type` | 输入，可清空、可提交表单 |
+| `browser_scroll` | 上/下/顶/底，或把某个元素滚到视口 |
+| `browser_find` | 页内查找文字，返回片段和可点击元素的 ref |
+| `browser_screenshot` | 可见区域截图；`fullPage` 用 CDP 截长图 |
+| `browser_history` | 后退 / 前进 / 刷新 |
+| `browser_highlight` | 高亮 ref 或一段文字，不点击 |
+| `browser_wait` | 等 selector / 文字出现，或固定等待 |
 
-`web_search` and `web_fetch` come from DSH itself.
+intelligent-ui 的宿主工具（不是 MCP，侧边栏直接渲染）：
 
-Refs are stable for the lifetime of a page but become stale after navigation or a large DOM update; the agent is instructed to take a fresh snapshot on failure.
-
----
-
-## Intelligent UI
-
-When the `intelligent-ui` plugin is installed, the side panel renders these DSH tools natively:
-
-| Tool | Purpose |
+| 工具 | 作用 |
 |---|---|
-| `ui_render` | Declarative component tree |
-| `ui_compose` | Markdown prose interleaved with component blocks |
-| `ui_patch` | Update a previously rendered card in place (works across messages) |
+| `ui_render` | 一棵声明式组件树：Card / Stack / Grid / Tabs / Stat / Table / Chart / Scatter / Heatmap / Timeline / Choice / Form … |
+| `ui_compose` | 在一个回答里穿插 Markdown 与组件，适合“解释 + 图 + 结论” |
+| `ui_patch` | 按 `uiId` 原位修改之前渲染的组件树（跨消息） |
 
-Supported components include Card, Stack, Grid, Tabs, Text, Code, Alert, Badge, Divider, Stat, Progress, List, Table (sort/search/page/CSV), Chart (bar/line/area/pie), Scatter, Heatmap, Timeline, CodeDiff, FileTree, JsonView, Image, Gallery, Video, Choice, Button and Form.
+Widget（`ui_render_widget`）默认不开放：MV3 扩展页的 CSP 会拦住任意内联/3D 脚本，渲染出来也不可靠。需要时可在 profile 里打开 `enableWidget` 并自行补 iframe 运行时。
 
-Known gaps:
-
-- `ui_render_widget` (3D / custom HTML) is **disabled** by the generated profile patch: MV3's extension CSP blocks arbitrary inline and remote scripts. Use the full `dsh web` app for widgets.
-- `Math` (KaTeX), `Mermaid`, `Map` and `Plot` currently show a source/list fallback.
-- Table sorting, tab selection and form state reset when the whole message is re-rendered.
+另有 DSH 自带的联网工具：`web_search`（搜索）和 `web_fetch`（抓取网页）。
 
 ---
 
-## Reasoning effort
+## 历史会话
 
-Use the **思考** selector next to the composer. The options are Chinese in the current UI:
+侧边栏的“历史对话”面板支持：
 
-| UI label | `reasoningEffort` |
-|---|---|
-| 自动 (Auto) | omitted (model default) |
-| 快速 (Fast) | `off` |
-| 标准 (Standard) | `low` |
-| 深入 (Deep) | `high` |
-| 极限 (Maximum) | `max` |
+- **置顶**：固定在列表最上方；置顶优先于最近活动排序。
+- **重命名**：行内编辑，Enter 保存、Esc 取消；自定义标题不会被首条消息覆盖。
+- **归档 / 取消归档**：归档后从主列表折叠到“显示已归档”，可随时恢复。
+- 点行切换会话；当前会话有高亮。
 
-Changing it while idle calls `POST /api/settings`, persists the choice, and restarts the DSH runtime so the next message uses the new effort. While a turn is running the request is refused (HTTP 409) to avoid killing it mid-flight.
+![历史会话](test/sessions.png)
 
----
+bridge 的会话索引在 `.runtime/sessions.json`，消息本体在 `DSH_HOME/sessions/`。相关 API：
 
-## Session history
+```http
+GET  /api/sessions                     # 全部会话（含 pinned/archived）
+POST /api/sessions                     # { id?, title? } 创建空会话
+POST /api/sessions/update              # { id, title?, pinned?, archived? }
+```
 
-The **历史对话** sheet supports (the icons are 置顶 / 重命名 / 归档):
-
-- **Pin** — pinned conversations sort above recent ones.
-- **Rename** — inline edit; Enter saves, Esc cancels. Custom titles are never overwritten by the first message.
-- **Archive / restore** — archived conversations fold into “Show archived”.
-
-![Session history](test/sessions.png)
-
-The title index lives in `.runtime/sessions.json`; full session logs live under `DSH_HOME/sessions/`. For development cleanup:
+清理开发/测试留下的一次性会话（**不会**动真实 `sidebar-<uuid>` 对话）：
 
 ```sh
-node tools/clean-test-sessions.mjs          # dry run
-node tools/clean-test-sessions.mjs --apply  # remove probe/smoke/test sessions
+node tools/clean-test-sessions.mjs          # 预览
+node tools/clean-test-sessions.mjs --apply  # 删除 sidebar-probe-*/smoke-*/test-* 及测试专用 home
 ```
 
-The cleanup only removes `sidebar-probe-*`, `sidebar-smoke-*`, `sidebar-test-*`, `sidebar-sessions-*` and sessions under test-only home directories. Real `sidebar-<uuid>` conversations are kept.
 
----
+## 配置
 
-## Configuration
+bridge 的参数可用命令行或环境变量，端口/token/模型写入 `.runtime/config.json` 后下次沿用（`DSH_HOME` 不持久化，每次按当前环境解析）：
 
-The bridge accepts flags or environment variables and persists port, token, model and effort in `.runtime/config.json` (mode 600). `DSH_HOME` is resolved at every launch and is not persisted.
+```sh
+./start --port 8787 --model deepseek-flash --dsh-home ~/.dsh
+```
 
-| Flag | Environment | Default |
+| 参数 | 环境变量 | 默认 |
 |---|---|---|
 | `--port` | `DSH_SIDEBAR_PORT` | `8787` |
 | `--model` | `DSH_SIDEBAR_MODEL` | `deepseek-flash` |
 | `--provider` | `DSH_SIDEBAR_PROVIDER` | `deepseek-official` |
-| `--dsh-home` | `DSH_SIDEBAR_DSH_HOME` | `~/.dsh` |
+| `--dsh-home` | `DSH_SIDEBAR_DSH_HOME` | `~/.dsh`（dsh web 的环境） |
 | `--max-page-chars` | `DSH_SIDEBAR_MAX_PAGE_CHARS` | `8000` |
-| `--reasoning-effort` | `DSH_SIDEBAR_EFFORT` | `auto` |
-| runtime directory | `DSH_SIDEBAR_RUNTIME` | `.runtime` |
-| `dsh` binary | `DSH_BIN` | auto-detected |
+| `--reasoning-effort` | `DSH_SIDEBAR_EFFORT` | `auto`（省略；可 `off/low/high/max`） |
+| runtime 目录 | `DSH_SIDEBAR_RUNTIME` | `.runtime` |
+| `dsh` 路径 | `DSH_BIN` | 自动探测 |
 
-In the side-panel **设置** you can change the bridge URL and token, and toggle **页面** (attach page text) and **截图** (attach the visible area).
+> bridge **不读取** shell 里的 `DSH_HOME`：如果它为别的 harness 导出过，继承它会悄悄换回旧环境。要覆盖默认值用 `--dsh-home` 或 `DSH_SIDEBAR_DSH_HOME`。
 
-Session ids look like `sidebar-<uuid>`. UI message caches live in `chrome.storage.local`; full events live in `DSH_HOME/sessions/`.
+> 注意：`DSH_HOME` 与 `dsh web` 共用时，侧边栏产生的会话（`sidebar-*`）也会出现在 `dsh web` 的会话目录里。如果不想混在一起，用 `--dsh-home` 指向单独的环境。
 
----
+侧边栏设置里可改 Bridge 地址、token，以及两个开关：
 
-## Privacy, security and permissions
+- **页面**：是否附带正文（默认开，8k 字符预算）
+- **截图**：是否附带当前可见区域截图（默认关）
 
-**Local bridge.** The bridge binds `127.0.0.1` only. Every API call needs the random token; the pairing endpoint accepts extension/local origins. Delete `.runtime/config.json` to rotate the token.
+输入框旁的 **思考** 下拉直接调 `POST /api/settings`：
 
-**What leaves your machine.** Page text, the selected text, and screenshots you attach are sent to the model provider configured in DSH (`deepseek-official` by default) as part of the prompt. DSH's own data-handling terms apply. This project adds no telemetry, analytics or cloud service.
+```json
+{ "reasoningEffort": "off" }
+```
 
-**Local data.** The token is stored in `.runtime/config.json` (0600) and `chrome.storage.local`; conversations are stored in `~/.dsh/sessions/` and the UI cache in `chrome.storage.local`.
+回合进行中会返回 409（避免中途杀掉运行时）；空闲时 bridge 会优雅关闭当前 DSH 进程，下一条消息按新强度重新初始化。
 
-**Permissions.**
+会话 ID 形如 `sidebar-<uuid>`，历史列表存在 `.runtime/sessions.json`，完整事件在 `DSH_HOME/sessions/`。UI 消息缓存在 `chrome.storage.local`。
 
-| Permission | Why |
-|---|---|
-| `sidePanel` | The UI itself |
-| `tabs` | Read tab title/URL, list tabs, navigate |
-| `scripting` + `<all_urls>` | Inject the content script into the page you ask about |
-| `activeTab` | User-invoked access to the current tab |
-| `storage` | Settings and local message cache |
-| `contextMenus` | “Summarize this page / explain selection” |
-| `debugger` | Full-page screenshot via Chrome DevTools Protocol |
-
-You can narrow `<all_urls>` to specific sites if you only use the panel there; `ensureInjected` will then fail gracefully elsewhere.
-
-**Prompt injection.** Page content is untrusted input. The agent is instructed to ignore page text that tries to change its task, exfiltrate secrets or trigger unrelated navigation. This is a mitigation, not a hard sandbox.
-
-**Real side effects.** Clicking and typing affect the same session you use in Chrome, including logged-in sites. Do not let the agent operate payment, password-manager or browser-settings pages unattended.
-
-**No local execution.** The generated `sdk` overlay disables `bash`, PowerShell, file read/write, subagents, workflows, goals and plan mode. The agent can read pages, call browser tools and use web search/fetch.
-
----
-
-## Limitations
-
-- Main frame only; cross-origin iframes and much of shadow DOM are out of reach.
-- Refs go stale after navigation or large DOM changes.
-- Streaming arrives per committed step, not token by token.
-- Stop kills the DSH runtime; the session is persisted and the next message attempts `session/resume`.
-- `chrome://`, the Web Store and the PDF viewer cannot be scripted.
-- Full-page screenshots use `chrome.debugger` and show Chrome's debugging banner briefly.
-- The side panel shares `~/.dsh` with `dsh web`; sidebar conversations appear in the same session directory unless you pass `--dsh-home`.
-- The side-panel chrome (buttons, labels) is Chinese-only for now; the assistant answers in your language.
-- Experimental; APIs and the component renderer may change.
-
----
-
-## Development
+### 换模型
 
 ```sh
-npm install                 # playwright-core, only for tests
-node --check server/bridge.mjs
-
-node test/render.mjs        # rich UI renderer + compose, no model
-node test/sessions.mjs      # session API: pin / rename / archive
-node test/sessions-ui.mjs   # history sheet in a real Chrome, no model
-node test/smoke.mjs         # bridge + MCP + one small model turn
-node test/ui.mjs            # real Chrome: pairing, read, click, screenshot, ui_render, ui_patch
-node test/probe-live.mjs    # probe a running bridge on 8787
+./start --model <model-id>
 ```
 
-The browser tests need Chrome for Testing (branded Chrome 137+ ignores `--load-extension`). They auto-discover Playwright's Chromium cache; set `DSH_TEST_CHROME=/path/to/chrome` to override. The tests create isolated `DSH_HOME`s under `.runtime-*` and only symlink the credentials file, so they do not write to your real session directory. `test/ui.mjs` also expects the intelligent-ui plugin in the `sdk` profile; skip it if you have not installed the plugin.
+模型必须能在 `deepseek-official` 路由上使用；其他 provider 可用 `--provider`。
 
-To regenerate icons:
+---
+
+## 与 dsh web profile 的关系
+
+| 共享 | 不共享 |
+|---|---|
+| `DSH_HOME`（凭据、模型、会话目录） | `dsh web` 的 HTTP/Web GUI 进程 |
+| DSH 版本、plugin 生态、`dsh-base` 工具 | Web 前端的 RPC 协议 |
+| 同样的 `deepseek-flash` 模型 | — |
+| 同一套 MCP 工具服务 | — |
+
+如果你想让 **`dsh web` 自己的 GUI agent** 也能控制 Chrome，把下面的 overlay 合进
+`~/.dsh/profiles/web/cordis.patch.yml`，重启 `dsh web`：
+
+```yaml
+- insert:
+    - id: mcp-browser-sidebar
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: browser
+        transport: stdio
+        command: node
+        args:
+          - /absolute/path/to/dsh-easysider/server/browser-mcp.mjs
+        env:
+          DSH_SIDEBAR_RUNTIME: /absolute/path/to/dsh-easysider/.runtime
+        toolCallTimeoutMs: 90000
+```
+
+完整示例见 [`examples/web-profile-browser.patch.yml`](examples/web-profile-browser.patch.yml)。这样 `dsh web` 里的 agent 会多出 `mcp__browser__*` 工具；执行仍然发生在 Chrome 侧边栏里，所以侧边栏要开着。注意 bridge 必须先启动（`.runtime/config.json` 里是当前端口和 token）。
+
+---
+
+## Chrome 扩展安装
+
+正常路径只有三步：`chrome://extensions` → 开发者模式 → 加载已解压 → 选 `dsh-easysider/extension`。
+
+如果加载失败，先按错误文案排查：
+
+| 现象 | 原因 / 处理 |
+|---|---|
+| "无法加载扩展程序" / "Manifest file is missing or unreadable" | 选错目录了：要选**包含 `manifest.json` 的 `extension/`**，不是仓库根目录 |
+| 加载按钮是灰的 | 没开右上角的**开发者模式** |
+| "此扩展程序可能已损坏" | 文件被改动或权限不对；重新解压/`git checkout` 后重试 |
+| 企业策略禁止 | `chrome://policy` 里看 `ExtensionInstallBlocklist` / `ExtensionSettings`；需要管理员放行或换浏览器 |
+| `--load-extension` 无效（命令行/自动化） | Chrome 137+ 对品牌版禁用了该开关；这不影响**手动**加载。自动化请用 Chrome for Testing |
+| 加载成功但工具栏没有图标 | 点拼图图标 → 固定；或从 `chrome://extensions` 点"扩展程序"卡片里的"在工具栏中显示" |
+
+如果手动加载仍然不通，可以从这三条里选一条继续（告诉我一声即可）：
+
+1. **手动加载**（推荐，最接近真实使用）：你装好后我继续用自动化脚本验证 bridge/agent，UI 由你实际点一遍。
+2. **Chrome for Testing**：机器上已有 Playwright 的 Chrome for Testing，我可以继续跑完整的真浏览器自动化（读页/点击/截图），但它是独立 profile，不带你日常登录态。
+3. **只做无浏览器验证**：`node test/smoke.mjs` 用假扩展验证协议链路；UI 和浏览器操作留到你手动确认。
+
+---
+
+## 图标与素材
+
+默认使用 **DeepSeek 鲸娘（拟人形态）** 的圆形头像：
+
+- 素材来自 [Sutera-Diffusus/dsh-whale-musume](https://github.com/Sutera-Diffusus/dsh-whale-musume)（MIT © Sutera-Diffusus；插画 [@SuteraWu](https://github.com/SuteraWu)），经由 `deepseek-harness-intelligent-ui` 的 demo 素材取得。
+- 完整署名和 MIT 文本见 [`tools/ICON-CREDITS.md`](tools/ICON-CREDITS.md)。
+- 源图 53 KB；渲染出的 128px 图标约 32 KB，远低于扩展的体积限制。
+- 如果源图缺失或超过 1.5 MB，`make-icons.mjs` 会自动回退到原创的**蓝色鲸鱼（动物形态）**。
+- 这是同人网络形象，不是 DeepSeek 官方素材，也不代表官方认可。
+
+
+
+## 隐私与权限
+
+**只在本机。** bridge 只绑定 `127.0.0.1`，每个 API 都需要随机 token；`/api/pair` 只接受扩展来源或本机页面。删除 `.runtime/config.json` 会轮换 token。
+
+**会离开本机的内容。** 当前页正文、选中文字和你勾选附带的截图会随提示词发送给 DSH 配置的模型服务（默认 `deepseek-official`）。适用 DSH 自身的数据处理条款；本项目不额外增加遥测、分析或云端服务。
+
+**本地数据。** token 存在 `.runtime/config.json`（0600）和 `chrome.storage.local`；会话在 `~/.dsh/sessions/`，UI 消息缓存在 `chrome.storage.local`。
+
+**权限。**
+
+| 权限 | 用途 |
+|---|---|
+| `sidePanel` | 侧边栏 UI |
+| `tabs` | 读取标签页标题/URL、列出标签页、导航 |
+| `scripting` + `<all_urls>` | 在你询问的页面上注入内容脚本 |
+| `activeTab` | 用户触发时访问当前标签页 |
+| `storage` | 设置与本地消息缓存 |
+| `contextMenus` | 右键"总结本页 / 解释选中" |
+| `debugger` | 通过 DevTools Protocol 截长图 |
+
+如果只在少数站点使用，可以把 `<all_urls>` 收窄；`ensureInjected` 在其他站点会给出明确错误。
+
+## 安全说明
+
+- **只监听本机**：bridge 绑定 `127.0.0.1`，每个 API 都要 token；`/api/pair` 只接受扩展来源或本机页面。
+- **没有本地执行权**：侧边栏 agent 的 profile 禁用了 `bash`、`pwsh`、文件读写、子代理、workflow、goal、plan mode。它只能读网页、调浏览器工具、联网搜索/抓取。
+- **页面是不可信输入**：MCP 的 instructions 和 persona 都明确要求忽略页面里"改变任务/套取密钥/无关跳转"的指令。但这只是缓解，不是硬隔离——模型仍可能被精心构造的页面误导。
+- **点击/输入会发生真实副作用**：在已登录的网站上，agent 的操作和你自己点一样。第一次让它操作时，建议盯一眼；浏览器配置、密码管理器、支付页面这类站点不要开自动操作。
+- **长图截图用 `chrome.debugger`**：会临时出现"DSH 正在调试此浏览器"横幅，截完即断开。仅 `fullPage` 截图和普通截图失败时使用。
+- **权限较宽**：`<all_urls>` 用于在任意网页注入；`debugger` 仅用于长截图。不想这么宽可以改成按站点授权（需要改 `manifest.json` 和 `ensureInjected`）。
+- **凭据不出本机**：模型凭据仍在 DSH 的 `.credentials.yaml`，bridge 不复制、不下发。MCP 子进程通过 env 拿 bridge token，token 存在 `.runtime/config.json`（600）。
+- **UI 内容同样按不可信处理**：组件文本先转义再渲染，链接只接受 http(s)，图片/视频只接受 https；Widget 关闭，避免模型生成的任意脚本在扩展页执行。
+
+---
+
+## 开发
 
 ```sh
-node tools/make-icons.mjs
+node --check server/bridge.mjs            # 语法
+node tools/make-icons.mjs                 # 重新生成图标
+node test/smoke.mjs                       # 不启动 Chrome：bridge + MCP + 模型一整轮
+node test/ui.mjs                          # 真 Chrome：配对、读页、快照、点击、截图、ui_render、ui_patch
+node test/render.mjs                      # 纯渲染：组件树 + compose，不调模型
+node test/sessions.mjs                    # 会话 pin/rename/archive API
+node test/sessions-ui.mjs                 # 历史面板的 pin/rename/archive（无模型）
+node test/probe-live.mjs                  # 探测已在跑的 bridge（默认 8787，共享 ~/.dsh）
+node tools/clean-test-sessions.mjs --apply  # 清掉本轮开发产生的一次性会话
 ```
 
-It uses the anthropomorphic whale-girl image by default and falls back to the blue whale when the source is missing or exceeds 1.5 MB. macOS `sips` is required for resizing.
+`test/smoke.mjs` 用假扩展（SSE + 罐头工具结果）验证协议链路，会花一次很小的模型调用。
+`test/ui.mjs` 需要 Chrome for Testing（品牌 Chrome 137+ 不再接受 `--load-extension`）。脚本会自动搜索
+Playwright 的 Chromium 缓存（macOS/Linux/Windows），也可以用 `DSH_TEST_CHROME` 指定。这些测试都会创建
+`.runtime-test` / `.runtime-ui` / `.runtime-render` / `.runtime-sessions-*` 里的隔离 `DSH_HOME`
+（只软链 `~/.dsh/.credentials.yaml`），不会写你的正式会话目录。`test/ui.mjs` 会检查 `ui_render` 渲染成卡片、`ui_patch` 原位更新且不重复出卡片；它要求 `sdk` profile 已安装 intelligent-ui，否则跳过该测试；
+`test/sessions-ui.mjs` 用真实面板验证置顶/重命名/归档。
 
----
-
-## Troubleshooting
-
-| Symptom | Check |
-|---|---|
-| Panel keeps “Connecting” | Is `./start` running? `curl 127.0.0.1:8787/api/health`; is the Bridge URL correct? |
-| “Token invalid” | Delete `.runtime/config.json` and restart, or click **Get token automatically** |
-| Tool stays “Running” | The panel was closed; reopen it. The bridge times out and tells the model |
-| “Page did not respond” | The page is navigating; take a fresh snapshot or use `browser_wait` |
-| Click does nothing | The element may be a `<div>` with a JS listener; use `browser_snapshot` and a ref, or `browser_find` |
-| Model says the page has no content | Attach more text via `browser_read` with a larger `maxChars`, or scroll and retry |
-| Full-page screenshot fails | Close DevTools on that tab |
-| `dsh` not found | `which dsh`, or set `DSH_BIN` |
-| Extension will not load | Select the `extension/` folder (it contains `manifest.json`), not the repository root; enable Developer mode |
-
----
-
-## Project layout
+### 目录
 
 ```
-.
+dsh-easysider/
 ├── server/
-│   ├── bridge.mjs          # local HTTP/SSE bridge + DSH child + tool routing
-│   └── browser-mcp.mjs     # stdio MCP server exposing browser_* tools
+│   ├── bridge.mjs          # 本地 HTTP/SSE + DSH 子进程 + 工具路由
+│   └── browser-mcp.mjs     # stdio MCP server，12 个 browser_* 工具
 ├── extension/
 │   ├── manifest.json
-│   ├── background.js       # context menu / open side panel
+│   ├── background.js       # 右键菜单 / 打开侧边栏
 │   ├── sidepanel.html/css/js
-│   ├── markdown.js         # shared Markdown renderer
-│   ├── ui-render.js        # intelligent-ui component tree renderer
-│   ├── content.js          # page text, snapshot, click, type, highlight, wait
-│   └── icons/
+│   ├── markdown.js         # 共享的 Markdown 渲染
+│   ├── ui-render.js        # intelligent-ui 组件树的原生渲染器
+│   ├── content.js          # 正文、快照、点击、输入、高亮、等待
+│   └── icons/              # 鲸娘图标（tools/whale-girl-icon.html 渲染）
 ├── examples/
 │   └── web-profile-browser.patch.yml
 ├── test/
+│   ├── smoke.mjs
+│   ├── ui.mjs
+│   ├── render.mjs
+│   ├── sessions.mjs
+│   ├── sessions-ui.mjs
+│   └── dsh-home.mjs
 ├── tools/
-└── start / stop
+│   ├── whale-girl-icon.html   # 拟人形态（默认）
+│   ├── whale-girl.webp        # 鲸娘素材（MIT，见 ICON-CREDITS.md）
+│   ├── whale-icon.html        # 动物形态（回退）
+│   ├── ICON-CREDITS.md
+│   ├── clean-test-sessions.mjs
+│   └── make-icons.mjs
+├── start / stop
+└── .runtime/               # 生成物：patch、token、会话标题、pid（gitignore）
 ```
+
+### 改工具
+
+1. 在 `server/browser-mcp.mjs` 的 `TOOLS` 里加 schema（名字 `browser_xxx`）。
+2. 在 `extension/sidepanel.js` 的 `executeTool` 里加分支。
+3. 如果需要在页面里做事，在 `extension/content.js` 的 `handlers` 里加操作。
+4. 重启 bridge（`./start` 会重写 patch），侧边栏刷新即可。
+
+### 改 UI 组件
+
+- 组件的真实契约在 `deepseek-harness-intelligent-ui` 的 `src/catalog/catalog.js`。
+- 渲染实现集中在 `extension/ui-render.js` 的 `renderCatalog` 的 `switch (node.type)`。
+- 未知类型会降级成“暂不支持 + props 预览”，不会让整条消息渲染失败。
+- 改完图标：`node tools/make-icons.mjs`（默认用 `tools/whale-girl-icon.html`；源图缺失或超过 1.5 MB 时自动回退到 `tools/whale-icon.html`）。
 
 ---
 
-## Contributing
+## 已知限制
 
-Issues and pull requests are welcome. Please:
+- **只操作主 frame**：iframe 内的元素、shadow DOM 里的按钮可能选不到；跨域 iframe 完全不行。
+- **快照引用会失效**：导航、刷新或大范围 DOM 更新后必须重新 `browser_snapshot`，模型被要求在失败时这么做。
+- **流式是"按 step"而不是逐 token**：DSH SDK 的 `session.event` 在消息提交时到达，所以是分段出现，不是打字机效果。
+- **停止=结束进程**：DSH SDK 没有 cancel RPC；bridge 用 SIGTERM 结束运行时，会话已落盘，下一条消息会尝试 `session/resume` 恢复。
+- **`chrome://`、Web Store、PDF 阅读器不能注入**，会明确报错。
+- **截图大小**：可见区域 JPEG，长图走 CDP 后仍是 JPEG（质量 70），超大页面会限制在 4000×20000。
+- **Widget 未开放**：MV3 扩展页 CSP 不允许任意内联脚本/远程模块，`ui_render_widget` 在生成的 patch 里被关掉；3D/物理模拟请用 `dsh web` 本体。
+- **少数组件降级**：`Math`（KaTeX）、`Mermaid`、`Map`、`Plot` 目前显示源码/列表占位；`Table` 的排序/搜索/Tab/表单状态在整条消息重渲染时会重置。
+- **Intelligent UI 版本**：固定在 `0.2.13`；升级后组件 schema 可能变化，先跑 `node test/render.mjs`。
+- **单用户、单机**：没有多用户鉴权；不要把 bridge 暴露到局域网（代码也只 bind 127.0.0.1）。
+- **模型行为**：页面正文被截断时模型可能误判"页面上没有"，它需要主动 `browser_read` 更多或 `browser_snapshot`。提示词已尽量引导，但不能保证。
+- **共享 `DSH_HOME` 的副作用**：与 `dsh web` 共用时，会话会出现在同一个目录；想隔离就用 `--dsh-home`。
+- **不是官方产品**：实验代码，MIT，按现状提供。
 
-- Keep the bridge runtime dependency-free (`node:http` / `node:child_process` only).
-- Run `node --check` on changed JS and the no-model tests before opening a PR.
-- Never commit `.runtime/`, `.runtime-*`, tokens, `.pem`, `.crx` or a real `~/.dsh` session.
-- Describe browser-tool changes with the exact selector/ref behavior you tested.
+---
+
+## 排错
+
+| 症状 | 先看 |
+|---|---|
+| 侧边栏一直"正在连接" | bridge 起了吗？`curl 127.0.0.1:8787/api/health`；端口改过就在设置里改地址 |
+| "Token 无效" | 删掉 `.runtime/config.json` 重启 bridge 会换 token；或直接点"自动获取" |
+| 工具一直"执行中" | 侧边栏被关过；重新打开侧边栏，bridge 会超时并告诉模型 |
+| "页面没有响应" | 页面在跳转/加载；重新快照或 `browser_wait` |
+| 点击没反应 | 元素可能是 `<div>` 上的 JS 事件；先 `browser_snapshot` 用 ref 点，或换成 `browser_find` |
+| 模型说页面没内容 | 正文预算 8k；让它用 `browser_read` 指定 `maxChars`，或滚动后再读 |
+| 长图截图失败 | 有 DevTools 打开着同一个标签页，关掉再试 |
+| bridge 启动报 `找不到 dsh` | `which dsh`，或设置 `DSH_BIN=/path/to/dsh` |
+| 会话出现在不想去的地方 | 用 `--dsh-home` 指向单独环境 |
+| 想看底层数据 | `.runtime/config.json`、`.runtime/sessions.json`、`DSH_HOME/sessions/` |
+
+
+## 上游与致谢
+
+本项目建立在以下开源项目之上，感谢作者和维护者：
+
+- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — agent 运行时、SDK 协议、MCP 客户端（MIT）。
+- [deepseek-harness-intelligent-ui](https://github.com/dreamfarer-space/deepseek-harness-intelligent-ui) — 富 UI 组件目录与 `ui_render` / `ui_compose` / `ui_patch` 工具契约（MIT）。
+- [Sutera-Diffusus/dsh-whale-musume](https://github.com/Sutera-Diffusus/dsh-whale-musume) — DeepSeek 鲸娘素材（MIT © Sutera-Diffusus；插画 [@SuteraWu](https://github.com/SuteraWu)），完整许可见 [tools/ICON-CREDITS.md](tools/ICON-CREDITS.md)。
+- [Playwright](https://github.com/microsoft/playwright) — 浏览器测试，仅开发依赖（Apache-2.0）。
+
+早期原型在 [deepseek-ai/dsh-superagent-prototype](https://github.com/deepseek-ai/dsh-superagent-prototype) 工作区中开发；当前代码与构建不依赖该仓库。
+
+第三方许可汇总见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ---
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Third-party notices, including the whale-girl artwork and intelligent-ui, are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+MIT，见 [LICENSE](LICENSE)。第三方素材和依赖的许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)：
+intelligent-ui（MIT）、DSH（MIT）、鲸娘素材（MIT © Sutera-Diffusus / 插画 @SuteraWu）、playwright-core（Apache-2.0，仅开发依赖）。
 
-DeepSeek, DSH and related names are trademarks of their respective owners. DSH EasySider is an independent community project.
-
----
-
-## Credits
-
-- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — agent runtime, SDK protocol, MCP client.
-- [deepseek-harness-intelligent-ui](https://github.com/dreamfarer-space/deepseek-harness-intelligent-ui) — component catalog and tool contract.
-- [Sutera-Diffusus/dsh-whale-musume](https://github.com/Sutera-Diffusus/dsh-whale-musume) — DeepSeek whale-girl artwork (MIT © Sutera-Diffusus; illustrations by [@SuteraWu](https://github.com/SuteraWu)). Full text in [tools/ICON-CREDITS.md](tools/ICON-CREDITS.md).
-- [Playwright](https://github.com/microsoft/playwright) — browser tests (dev dependency).
+本项目与 DeepSeek 官方无隶属关系；`DSH EasySider` 是社区工具。
