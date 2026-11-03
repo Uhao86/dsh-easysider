@@ -285,6 +285,7 @@ You can narrow `<all_urls>` to specific sites if you only use the panel there; `
 - `chrome://`, the Web Store and the PDF viewer cannot be scripted.
 - Full-page screenshots use `chrome.debugger` and show Chrome's debugging banner briefly.
 - The side panel shares `~/.dsh` with `dsh web`; sidebar conversations appear in the same session directory unless you pass `--dsh-home`.
+- The side-panel chrome (buttons, labels) is Chinese-only for now; the assistant answers in your language.
 - Experimental; APIs and the component renderer may change.
 
 ---
