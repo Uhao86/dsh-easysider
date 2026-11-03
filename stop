@@ -1,0 +1,15 @@
+#!/bin/sh
+# Stop the bridge started by ./start (and its dsh child).
+cd "$(dirname "$0")" || exit 1
+PIDFILE=.runtime/bridge.pid
+if [ ! -f "$PIDFILE" ]; then
+  echo "没有在跑（缺少 $PIDFILE）"
+  exit 0
+fi
+pid=$(cat "$PIDFILE")
+if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+  kill "$pid" && echo "已停止 bridge (pid $pid)"
+else
+  echo "进程 $pid 不在了"
+fi
+rm -f "$PIDFILE"

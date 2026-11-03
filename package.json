@@ -1,0 +1,23 @@
+{
+  "name": "dsh-easysider",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "DSH EasySider: a Chrome side panel for DeepSeek Harness with browser control, rich intelligent UI, reasoning effort, and session history.",
+  "scripts": {
+    "start": "node server/bridge.mjs",
+    "icons": "node tools/make-icons.mjs",
+    "clean:sessions": "node tools/clean-test-sessions.mjs",
+    "test": "node test/smoke.mjs",
+    "test:ui": "node test/ui.mjs",
+    "test:render": "node test/render.mjs",
+    "test:sessions": "node test/sessions.mjs",
+    "test:sessions-ui": "node test/sessions-ui.mjs",
+    "test:probe": "node test/probe-live.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "1.64.1"
+  },
+  "author": "DSH EasySider contributors",
+  "license": "MIT"
+}

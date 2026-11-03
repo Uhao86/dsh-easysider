@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; padding: 0; width: 512px; height: 512px; background: transparent; overflow: hidden; }
+  svg { display: block; width: 512px; height: 512px; }
+</style>
+</head>
+<body>
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="40" y1="20" x2="470" y2="500" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3D5AFE"/>
+      <stop offset=".55" stop-color="#5B7BFF"/>
+      <stop offset="1" stop-color="#9A6BFF"/>
+    </linearGradient>
+    <linearGradient id="body" x1="180" y1="170" x2="300" y2="410" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E3EAFF"/>
+    </linearGradient>
+    <linearGradient id="tail" x1="420" y1="180" x2="470" y2="360" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#CBD8FF"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.35" r="0.75">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect x="16" y="16" width="480" height="480" rx="124" fill="url(#bg)"/>
+  <rect x="16" y="16" width="480" height="480" rx="124" fill="url(#glow)"/>
+
+  <!-- water spout -->
+  <path d="M171 170 C 165 140 178 116 200 102" fill="none" stroke="#FFFFFF" stroke-width="17" stroke-linecap="round" opacity=".95"/>
+  <circle cx="204" cy="96" r="13" fill="#FFFFFF"/>
+  <circle cx="231" cy="74" r="8" fill="#FFFFFF" opacity=".85"/>
+  <circle cx="178" cy="76" r="7" fill="#FFFFFF" opacity=".7"/>
+  <circle cx="248" cy="100" r="5" fill="#FFFFFF" opacity=".55"/>
+
+  <!-- tail -->
+  <path d="M401 298 C 440 266 462 222 466 168 C 493 232 486 316 428 365 Z" fill="url(#tail)"/>
+  <path d="M438 300 C 452 276 459 250 461 222" fill="none" stroke="#AFC2FF" stroke-width="7" stroke-linecap="round" opacity=".6"/>
+
+  <!-- body -->
+  <path d="M88 302 C 88 226 156 178 244 178 C 342 178 408 230 418 300 C 427 362 374 402 300 402 L 190 402 C 122 402 88 358 88 302 Z" fill="url(#body)"/>
+
+  <!-- belly highlight -->
+  <path d="M139 348 C 177 380 240 392 304 386 C 349 382 386 366 407 344 C 397 382 350 406 292 408 L 196 408 C 158 408 135 386 139 348 Z" fill="#CFDCFF" opacity=".55"/>
+
+  <!-- fin -->
+  <path d="M252 326 C 281 352 322 370 358 374 C 328 395 280 392 249 370 Z" fill="#B7C8FF"/>
+  <path d="M269 344 C 291 358 315 368 339 372" fill="none" stroke="#93A9F0" stroke-width="6" stroke-linecap="round" opacity=".55"/>
+
+  <!-- eye -->
+  <circle cx="181" cy="266" r="21" fill="#26356F"/>
+  <circle cx="188" cy="259" r="7" fill="#FFFFFF"/>
+  <circle cx="174" cy="274" r="3.5" fill="#FFFFFF" opacity=".7"/>
+
+  <!-- blush -->
+  <ellipse cx="222" cy="316" rx="25" ry="13" fill="#FF9DB6" opacity=".5"/>
+
+  <!-- smile -->
+  <path d="M142 312 C 152 332 172 340 192 335" fill="none" stroke="#26356F" stroke-width="9" stroke-linecap="round" opacity=".75"/>
+
+  <!-- sparkle -->
+  <path d="M392 118 C 394 137 403 146 422 148 C 403 150 394 159 392 178 C 390 159 381 150 362 148 C 381 146 390 137 392 118 Z" fill="#FFFFFF" opacity=".95"/>
+  <path d="M337 150 C 338 160 343 165 353 166 C 343 167 338 172 337 182 C 336 172 331 167 321 166 C 331 165 336 160 337 150 Z" fill="#FFFFFF" opacity=".7"/>
+</svg>
+</body>
+</html>

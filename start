@@ -1,0 +1,5 @@
+#!/bin/sh
+# Start the local bridge for the DSH EasySider Chrome side panel.
+# The bridge binds 127.0.0.1 only and boots `dsh --profile sdk` on demand.
+cd "$(dirname "$0")" || exit 1
+exec node server/bridge.mjs "$@"

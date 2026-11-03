@@ -1,0 +1,8 @@
+# Local runtime state
+.runtime/
+.runtime-*/
+node_modules/
+*.log
+*.crx
+*.pem
+.DS_Store

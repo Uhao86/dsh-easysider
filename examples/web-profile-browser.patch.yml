@@ -1,0 +1,25 @@
+# Optional overlay: give the `dsh web` profile the same browser-control tools
+# as the side panel.
+#
+# Merge the `- insert:` block below into
+#   ~/.dsh/profiles/web/cordis.patch.yml
+# (replace <dsh-easysider> with the absolute path of the dsh-easysider directory), then restart
+# `dsh web`. Keep the Chrome side panel open: the extension is what actually
+# executes the tool calls, and this MCP server reads the bridge's current
+# port/token from <dsh-easysider>/.runtime/config.json.
+#
+# The side panel's own agent already gets these tools from the generated
+# profile patch; this file is only for the `dsh web` GUI's agent.
+- insert:
+    - id: mcp-browser-sidebar
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: browser
+        transport: stdio
+        command: node
+        args:
+          - <dsh-easysider>/server/browser-mcp.mjs
+        env:
+          DSH_SIDEBAR_RUNTIME: <dsh-easysider>/.runtime
+        toolCallTimeoutMs: 90000
+        failOnStartupError: false

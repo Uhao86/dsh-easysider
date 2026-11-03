@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; padding: 0; width: 512px; height: 512px; background: transparent; overflow: hidden; }
+  .badge {
+    position: relative;
+    width: 512px; height: 512px;
+    border-radius: 50%;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 50% 30%, #ffffff 0%, #f4f7ff 46%, #e2eaff 74%, #cfdcff 100%);
+    box-shadow: inset 0 0 0 12px rgba(255,255,255,.9);
+  }
+  .badge::after {
+    content: "";
+    position: absolute; inset: 0;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 10px rgba(77,107,254,.22);
+  }
+  .photo {
+    position: absolute;
+    left: -150px;
+    top: -52px;
+    width: 820px;
+    height: 820px;
+    background-image: url("whale-girl.webp");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+  }
+  .sparkle {
+    position: absolute;
+    right: 42px; top: 46px;
+    width: 58px; height: 58px;
+    opacity: .9;
+  }
+</style>
+</head>
+<body>
+  <div class="badge">
+    <div class="photo"></div>
+    <svg class="sparkle" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+      <path d="M32 4c1.6 17 10 25.4 27 27-17 1.6-25.4 10-27 27-1.6-17-10-25.4-27-27 17-1.6 25.4-10 27-27Z" fill="#4d6bfe"/>
+    </svg>
+  </div>
+</body>
+</html>
