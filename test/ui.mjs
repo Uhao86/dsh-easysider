@@ -342,7 +342,6 @@ async function main() {
   await panel.bringToFront()
   await panel.screenshot({ path: join(ROOT, '.runtime-ui', 'sidepanel.png') })
   await testPage.bringToFront()
-  await testPage.screenshot({ path: join(ROOT, 'test', 'test-page.png') })
   const shots = await panel.evaluate(() => [...document.querySelectorAll('.tool')].map((el) => el.innerText.replace(/\n/g, ' ')))
   console.log('[ui] tool rows:', shots.join(' | '))
   console.log('\n✓ UI test passed')

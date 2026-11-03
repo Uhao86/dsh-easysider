@@ -32,7 +32,6 @@
 - **页面右键菜单**："用 DSH 总结这个页面 / 解释选中内容"。
 - **快捷键**：`Alt+Shift+S` 打开侧边栏（可在 `chrome://extensions/shortcuts` 改）。
 
-![操作测试页](test/test-page.png)
 
 ---
 
