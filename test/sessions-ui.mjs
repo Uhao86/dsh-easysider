@@ -65,6 +65,7 @@ async function main() {
     executablePath: CHROME,
     headless: true,
     viewport: { width: 400, height: 900 },
+    deviceScaleFactor: 2,
     args: [
       `--disable-extensions-except=${EXT}`,
       `--load-extension=${EXT}`,
@@ -131,7 +132,10 @@ async function main() {
   if (b?.title !== 'Beta 已改名' || b?.customTitle !== true) fail('rename not persisted on the bridge')
   if (c?.archived !== true) fail('archive not persisted on the bridge')
 
-  await panel.screenshot({ path: join(ROOT, 'test', 'sessions.png') })
+  await panel.screenshot({
+    path: join(ROOT, 'test', 'sessions.png'),
+    clip: { x: 0, y: 0, width: 400, height: 340 },
+  })
   console.log('[history] screenshot -> test/sessions.png')
   console.log('✓ history UI test passed')
 }

@@ -28,6 +28,7 @@ const context = await chromium.launchPersistentContext(PROFILE, {
   executablePath: CHROME,
   headless: true,
   viewport: { width: 400, height: 900 },
+  deviceScaleFactor: 2,
   args: [
     `--disable-extensions-except=${EXT}`,
     `--load-extension=${EXT}`,
