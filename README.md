@@ -6,7 +6,7 @@
 
 把 DeepSeek Harness 装进 Chrome 侧边栏：读当前页、点按钮、填表单、截图，并用卡片/图表回答。复用 `dsh web` 的 `~/.dsh`——登录、模型、会话都是同一套。
 
-<p align="center"><img src="test/ui-sample.png" width="320" alt="侧边栏里的 KPI、折线图和表格"></p>
+<p align="center"><img src="test/ui-sample.png" width="320" alt="侧边栏里的 KPI、折线图和表格"><br><em>富 UI：KPI、折线图、可排序表格</em></p>
 
 ## 一句话交给 agent
 
@@ -57,7 +57,7 @@ DSH_HOME="$HOME/.dsh" dsh plugin --profile sdk add deepseek-harness-intelligent-
 - 右键菜单；快捷键 `Alt+Shift+S`。
 - 富 UI（可选）：卡片、KPI、表格、图表、时间线、Choice / Form。
 
-<p align="center"><img src="test/sessions.png" width="320" alt="历史会话：置顶、重命名、归档"></p>
+<p align="center"><img src="test/sessions.png" width="320" alt="历史会话：置顶、重命名、归档"><br><em>历史会话：置顶、重命名、归档</em></p>
 
 ## 隐私
 

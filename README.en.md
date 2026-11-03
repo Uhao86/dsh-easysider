@@ -6,7 +6,7 @@
 
 Put a DeepSeek Harness agent in a Chrome side panel: read the current page, click, type, take screenshots, and answer with cards and charts. It reuses `dsh web`'s `~/.dsh` — the same sign-in, model and session store.
 
-<p align="center"><img src="test/ui-sample.png" width="320" alt="KPI tiles, a line chart and a table in the side panel"></p>
+<p align="center"><img src="test/ui-sample.png" width="320" alt="KPI tiles, a line chart and a table in the side panel"><br><em>Rich UI: KPI tiles, a line chart and a sortable table</em></p>
 
 ## One sentence for your agent
 
@@ -57,7 +57,7 @@ DSH_HOME="$HOME/.dsh" dsh plugin --profile sdk add deepseek-harness-intelligent-
 - Context menu; `Alt+Shift+S` shortcut.
 - Optional rich UI: cards, KPIs, tables, charts, timelines, Choice / Form.
 
-<p align="center"><img src="test/sessions.png" width="320" alt="Session history: pin, rename, archive"></p>
+<p align="center"><img src="test/sessions.png" width="320" alt="Session history: pin, rename, archive"><br><em>Session history: pin, rename, archive</em></p>
 
 ## Privacy
 
